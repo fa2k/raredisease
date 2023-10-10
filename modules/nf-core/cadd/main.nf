@@ -3,14 +3,12 @@ process CADD {
     label 'process_medium'
 
     conda "bioconda::cadd-scripts=1.6 anaconda::conda=4.14.0 conda-forge::mamba=1.4.0"
-    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'https://depot.galaxyproject.org/singularity/mulled-v2-8d145e7b16a8ca4bf920e6ca464763df6f0a56a2:d4e457a2edecb2b10e915c01d8f46e29e236b648-0':
-        'biocontainers/mulled-v2-8d145e7b16a8ca4bf920e6ca464763df6f0a56a2:d4e457a2edecb2b10e915c01d8f46e29e236b648-0' }"
+    container 'paalmbj/cadd:1.6'
 
     containerOptions {
         (workflow.containerEngine == 'singularity') ?
-            "--writable -B ${annotation_dir}:/usr/local/share/cadd-scripts-1.6-1/data/annotations" :
-            "--privileged -v ${annotation_dir}:/usr/local/share/cadd-scripts-1.6-1/data/annotations"
+            "--env XDG_CACHE_HOME=/tmp/.cache -B ${annotation_dir}/ref/CADD-v1.6:/opt/conda/share/cadd-scripts-1.6-1/data/annotations" :
+            "--privileged -v ${annotation_dir}:/opt/conda/share/cadd-scripts-1.6-1/data/annotations"
         }
 
     input:
