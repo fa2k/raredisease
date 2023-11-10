@@ -54,7 +54,7 @@ if (params.variant_caller.equals("sentieon")) {
     mandatoryParams += ["ml_model"]
 }
 
-if (!params.skip_cnv_calling) {
+if (!params.skip_germlinecnvcaller) {
     mandatoryParams += ["ploidy_model", "gcnvcaller_model"]
 }
 
@@ -277,16 +277,17 @@ workflow RAREDISEASE {
 
 
     // SV caller priority
-    if (params.skip_cnv_calling) {
+    if (params.skip_germlinecnvcaller) {
         ch_svcaller_priority = Channel.value(["tiddit", "manta"])
     } else {
         ch_svcaller_priority = Channel.value(["tiddit", "manta", "gcnvcaller"])
     }
 
     // Input QC
-    FASTQC (ch_reads)
-    ch_versions = ch_versions.mix(FASTQC.out.versions.first())
-
+    if (!params.skip_fastqc) {
+        FASTQC (ch_reads)
+        ch_versions = ch_versions.mix(FASTQC.out.versions.first())
+    }
     // CREATE CHROMOSOME BED AND INTERVALS
     SCATTER_GENOME (
         ch_genome_dictionary,
@@ -593,7 +594,9 @@ workflow RAREDISEASE {
     ch_multiqc_files = ch_multiqc_files.mix(ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
     ch_multiqc_files = ch_multiqc_files.mix(ch_methods_description.collectFile(name: 'methods_description_mqc.yaml'))
     ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_yml.collect())
-    ch_multiqc_files = ch_multiqc_files.mix(FASTQC.out.zip.collect{it[1]}.ifEmpty([]))
+    if (!params.skip_fastqc) {
+        ch_multiqc_files = ch_multiqc_files.mix(FASTQC.out.zip.collect{it[1]}.ifEmpty([]))
+    }
     ch_multiqc_files = ch_multiqc_files.mix(QC_BAM.out.multiple_metrics.map{it[1]}.collect().ifEmpty([]))
     ch_multiqc_files = ch_multiqc_files.mix(QC_BAM.out.hs_metrics.map{it[1]}.collect().ifEmpty([]))
     ch_multiqc_files = ch_multiqc_files.mix(QC_BAM.out.qualimap_results.map{it[1]}.collect().ifEmpty([]))
