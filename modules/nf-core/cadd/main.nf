@@ -3,7 +3,7 @@ process CADD {
     label 'process_medium'
 
     conda "bioconda::cadd-scripts=1.6 anaconda::conda=4.14.0 conda-forge::mamba=1.4.0"
-    container 'docker://docker.io/paalmbj/cadd:1.6'
+    container 'docker://docker.io/paalmbj/cadd-scripts:1.6'
 
     containerOptions {
         (workflow.containerEngine == 'singularity') ?
