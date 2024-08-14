@@ -3,14 +3,12 @@ process CADD {
     label 'process_medium'
 
     conda "${moduleDir}/environment.yml"
-    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'https://depot.galaxyproject.org/singularity/mulled-v2-8d145e7b16a8ca4bf920e6ca464763df6f0a56a2:d4e457a2edecb2b10e915c01d8f46e29e236b648-0':
-        'biocontainers/mulled-v2-8d145e7b16a8ca4bf920e6ca464763df6f0a56a2:d4e457a2edecb2b10e915c01d8f46e29e236b648-0' }"
+    container "docker.io/paalmbj/cadd-with-envs:1.7.1"
 
     containerOptions {
         (workflow.containerEngine == 'singularity') ?
-            "--writable -B ${annotation_dir}:/usr/local/share/cadd-scripts-1.6-1/data/annotations" :
-            "--privileged -v ${annotation_dir}:/usr/local/share/cadd-scripts-1.6-1/data/annotations"
+            "-B ${annotation_dir}/:/opt/CADD-scripts-1.7.1/data/annotations -B ${annotation_dir}/:$workDir/data/annotations" :
+            "-v ${annotation_dir}/:/opt/CADD-scripts-1.7.1/data/annotations"
         }
 
     input:
@@ -27,10 +25,18 @@ process CADD {
     script:
     def args = task.ext.args ?: ''
     def prefix = task.ext.prefix ?: "${meta.id}"
-    def VERSION = "1.6" // WARN: Version information not provided by tool on CLI. Please update version string below when bumping container versions.
+    def VERSION = "1.7.1" // WARN: Version information not provided by tool on CLI. Please update version string below when bumping container versions.
     """
-    cadd.sh \\
+    # Make sure cache directory at XDG_CACHE_HOME,  used by snakemake, is writable
+    mkdir .snakemake_cache
+    export XDG_CACHE_HOME=\$PWD/.snakemake_cache
+
+    # Link CADD data for use with esm, expected at PWD/data
+    ln -s /opt/CADD-scripts-1.7.1/data
+
+    CADD.sh \\
         -o ${prefix}.tsv.gz \\
+	-m -d \\
         $args \\
         $vcf
 
@@ -43,7 +49,7 @@ process CADD {
     stub:
     def args = task.ext.args ?: ''
     def prefix = task.ext.prefix ?: "${meta.id}"
-    def VERSION = "1.6" // WARN: Version information not provided by tool on CLI. Please update version string below when bumping container versions.
+    def VERSION = "1.7.1" // WARN: Version information not provided by tool on CLI. Please update version string below when bumping container versions.
     """
     touch ${prefix}.tsv.gz
 
