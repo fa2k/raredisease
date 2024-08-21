@@ -42,6 +42,17 @@
                     "description": "MultiQC report title. Printed as page header, used for filename if not otherwise specified.",
                     "fa_icon": "fas fa-file-signature",
                     "hidden": true
+                },
+                "step": {
+                    "type": "string",
+                    "default": "mapping",
+                    "fa_icon": "fas fa-play",
+                    "description": "Starting step",
+                    "help_text": "The pipeline starts from this step and then runs through the possible subsequent steps.",
+                    "enum": [
+                        "mapping",
+                        "variant_calling"
+                    ]
                 }
             }
         },
