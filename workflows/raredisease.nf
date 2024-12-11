@@ -137,6 +137,7 @@ include { CREATE_PEDIGREE_FILE                           } from '../modules/loca
 //
 
 include { ALIGN                                              } from '../subworkflows/local/align'
+include { INPUT_ALIGNED                                      } from '../subworkflows/local/input_aligned'
 include { ANNOTATE_CSQ_PLI as ANN_CSQ_PLI_ME                 } from '../subworkflows/local/annotate_consequence_pli.nf'
 include { ANNOTATE_CSQ_PLI as ANN_CSQ_PLI_MT                 } from '../subworkflows/local/annotate_consequence_pli'
 include { ANNOTATE_CSQ_PLI as ANN_CSQ_PLI_SNV                } from '../subworkflows/local/annotate_consequence_pli'
@@ -180,7 +181,7 @@ workflow RAREDISEASE {
     ch_versions = Channel.empty()
     ch_multiqc_files = Channel.empty()
 
-    ch_samples   = ch_samplesheet.map { meta, fastqs ->
+    ch_samples   = ch_samplesheet.map { meta, inputfiles ->
                         new_id = meta.sample
                         new_meta = meta - meta.subMap('lane', 'read_group') + [id:new_id]
                         return new_meta
@@ -391,8 +392,10 @@ workflow RAREDISEASE {
     //
     // Input QC
     //
-    FASTQC (ch_samplesheet)
-    ch_versions = ch_versions.mix(FASTQC.out.versions.first())
+    if (params.step == 'mapping') {
+        FASTQC (ch_samplesheet)
+        ch_versions = ch_versions.mix(FASTQC.out.versions.first())
+    }
 
     //
     // Create chromosome bed and intervals for splitting and gathering operations
@@ -412,30 +415,51 @@ workflow RAREDISEASE {
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-    ALIGN (
-        ch_samplesheet,
-        ch_genome_fasta,
-        ch_genome_fai,
-        ch_genome_bwaindex,
-        ch_genome_bwamem2index,
-        ch_genome_bwamemeindex,
-        ch_genome_dictionary,
-        ch_mt_bwaindex,
-        ch_mt_bwamem2index,
-        ch_mt_dictionary,
-        ch_mt_fai,
-        ch_mt_fasta,
-        ch_mtshift_bwaindex,
-        ch_mtshift_bwamem2index,
-        ch_mtshift_dictionary,
-        ch_mtshift_fai,
-        ch_mtshift_fasta,
-        params.mbuffer_mem,
-        params.platform,
-        params.samtools_sort_threads
-    )
-    .set { ch_mapped }
-    ch_versions   = ch_versions.mix(ALIGN.out.versions)
+    if (params.step == 'mapping') {
+        ALIGN (
+            ch_samplesheet,
+            ch_genome_fasta,
+            ch_genome_fai,
+            ch_genome_bwaindex,
+            ch_genome_bwamem2index,
+            ch_genome_bwamemeindex,
+            ch_genome_dictionary,
+            ch_mt_bwaindex,
+            ch_mt_bwamem2index,
+            ch_mt_dictionary,
+            ch_mt_fai,
+            ch_mt_fasta,
+            ch_mtshift_bwaindex,
+            ch_mtshift_bwamem2index,
+            ch_mtshift_dictionary,
+            ch_mtshift_fai,
+            ch_mtshift_fasta,
+            params.mbuffer_mem,
+            params.platform,
+            params.samtools_sort_threads
+        )
+        .set { ch_mapped }
+        ch_versions   = ch_versions.mix(ALIGN.out.versions)
+    }
+    else if (params.step == 'variant_calling') {
+        INPUT_ALIGNED(
+            ch_samplesheet,
+            ch_genome_fasta,
+            ch_genome_fai,
+            ch_genome_dictionary,
+            ch_mt_bwaindex,
+            ch_mt_bwamem2index,
+            ch_mt_dictionary,
+            ch_mt_fai,
+            ch_mt_fasta,
+            ch_mtshift_bwaindex,
+            ch_mtshift_bwamem2index,
+            ch_mtshift_dictionary,
+            ch_mtshift_fai,
+            ch_mtshift_fasta,
+        ).set { ch_mapped }
+        ch_versions   = ch_versions.mix(INPUT_ALIGNED.out.versions)
+    }
 
     if (!params.skip_mt_subsample && (params.analysis_type.equals("wgs") || params.run_mt_for_wes)) {
         SUBSAMPLE_MT(
@@ -901,8 +925,10 @@ workflow RAREDISEASE {
         )
     )
 
-    ch_multiqc_files = ch_multiqc_files.mix(FASTQC.out.zip.collect{it[1]}.ifEmpty([]))
-    ch_multiqc_files = ch_multiqc_files.mix(ALIGN.out.fastp_json.map{it[1]}.collect().ifEmpty([]))
+    if (params.step == 'mapping') {
+        ch_multiqc_files = ch_multiqc_files.mix(FASTQC.out.zip.collect{it[1]}.ifEmpty([]))
+        ch_multiqc_files = ch_multiqc_files.mix(ALIGN.out.fastp_json.map{it[1]}.collect().ifEmpty([]))
+    }
     ch_multiqc_files = ch_multiqc_files.mix(QC_BAM.out.sex_check.map{it[1]}.collect().ifEmpty([]))
     ch_multiqc_files = ch_multiqc_files.mix(QC_BAM.out.multiple_metrics.map{it[1]}.collect().ifEmpty([]))
     ch_multiqc_files = ch_multiqc_files.mix(QC_BAM.out.hs_metrics.map{it[1]}.collect().ifEmpty([]))

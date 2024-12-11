@@ -71,36 +71,62 @@ workflow PIPELINE_INITIALISATION {
     //
     // Create channel from input file provided through params.input
     //
-    Channel
-        .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
-        .tap { ch_original_input }
-        .map { meta, fastq1, fastq2 -> meta.id }
-        .reduce([:]) { counts, sample -> //get counts of each sample in the samplesheet - for groupTuple
-            counts[sample] = (counts[sample] ?: 0) + 1
-            counts
-        }
-        .combine( ch_original_input )
-        .map { counts, meta, fastq1, fastq2 ->
-            new_meta = meta + [num_lanes:counts[meta.id],
-                        read_group:"\'@RG\\tID:"+ fastq1.simpleName + "_" + meta.lane + "\\tPL:" + params.platform.toUpperCase() + "\\tSM:" + meta.id + "\'"]
-            if (!fastq2) {
-                return [ new_meta + [ single_end:true ], [ fastq1 ] ]
-            } else {
-                return [ new_meta + [ single_end:false ], [ fastq1, fastq2 ] ]
+    if (params.step == 'mapping') {
+        Channel
+            .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
+            .tap { ch_original_input }
+            .map { meta, fastq1, fastq2 -> meta.id }
+            .reduce([:]) { counts, sample -> //get counts of each sample in the samplesheet - for groupTuple
+                counts[sample] = (counts[sample] ?: 0) + 1
+                counts
             }
-        }
-        .tap{ ch_input_counts }
-        .map { meta, fastqs -> fastqs }
-        .reduce([:]) { counts, fastqs -> //get line number for each row to construct unique sample ids
-            counts[fastqs] = counts.size() + 1
-            return counts
-        }
-        .combine( ch_input_counts )
-        .map { lineno, meta, fastqs -> //append line number to sampleid
-            new_meta = meta + [id:meta.id+"_LNUMBER"+lineno[fastqs]]
-            return [ new_meta, fastqs ]
-        }
-        .set { ch_samplesheet }
+            .combine( ch_original_input )
+            .map { counts, meta, fastq1, fastq2 ->
+                new_meta = meta + [num_lanes:counts[meta.id],
+                            read_group:"\'@RG\\tID:"+ fastq1.simpleName + "_" + meta.lane + "\\tPL:" + params.platform.toUpperCase() + "\\tSM:" + meta.id + "\'"]
+                if (!fastq2) {
+                    return [ new_meta + [ single_end:true ], [ fastq1 ] ]
+                } else {
+                    return [ new_meta + [ single_end:false ], [ fastq1, fastq2 ] ]
+                }
+            }
+            .tap{ ch_input_counts }
+            .map { meta, fastqs -> fastqs }
+            .reduce([:]) { counts, fastqs -> //get line number for each row to construct unique sample ids
+                counts[fastqs] = counts.size() + 1
+                return counts
+            }
+            .combine( ch_input_counts )
+            .map { lineno, meta, fastqs -> //append line number to sampleid
+                new_meta = meta + [id:meta.id+"_LNUMBER"+lineno[fastqs]]
+                return [ new_meta, fastqs ]
+            }
+            .set { ch_samplesheet }
+    }
+    else if (params.step == 'variant_calling') {
+        Channel
+            .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
+            .map {
+                meta, fastq1, fastq2, cram, crai, bam, bai ->
+                if (bam && !cram) {
+                    if (!bai) {
+                        log.error "bai is required if bam is provided"
+                    }
+                    return [meta, bam, bai]
+                }
+                if (cram && !bam) {
+                    if (!crai) {
+                        log.error "crai is required if cram is provided"
+                    }
+                    return [meta, cram, crai]
+                }
+
+            }
+            .set { ch_samplesheet }
+    }
+    else {
+        log.error "Invalid 'step' specified."
+    }
 
     emit:
     samplesheet = ch_samplesheet
