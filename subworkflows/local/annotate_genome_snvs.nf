@@ -36,6 +36,7 @@ workflow ANNOTATE_GENOME_SNVS {
         val_vep_cache_version // string: [mandatory] default: 107
         ch_vep_cache          // channel: [mandatory] [ path(cache) ]
         ch_genome_fasta       // channel: [mandatory] [ val(meta), path(fasta) ]
+        ch_genome_fai         // channel: [mandatory] [ val(meta), path(fai) ]
         ch_gnomad_af          // channel: [optional] [ path(tab), path(tbi) ]
         ch_samples            // channel: [mandatory] [ val(sample_meta) ]
         ch_split_intervals    // channel: [mandatory] [ path(intervals) ]
@@ -88,6 +89,7 @@ workflow ANNOTATE_GENOME_SNVS {
                 .set { ch_cadd_in }
 
             ANNOTATE_CADD (
+                ch_genome_fai,
                 ch_cadd_in,
                 ch_cadd_header,
                 ch_cadd_resources
